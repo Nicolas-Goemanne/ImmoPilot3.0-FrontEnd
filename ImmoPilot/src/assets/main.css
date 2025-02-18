@@ -1,0 +1,64 @@
+/* 🔹 Reset & Algemene Instellingen */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Arial', sans-serif;
+}
+
+/* 🔹 Body & Background */
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f4f4f4;
+}
+
+/* 🔹 Achtergrondafbeelding */
+.app {
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/background.png');
+  background-size: cover;  
+  background-position: top center; 
+  background-repeat: no-repeat;
+}
+
+/* 🔹 Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #ccc;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: transparent;
+}
+
+/* 🔹 RESPONSIVE DESIGN */
+@media (max-width: 1024px) {
+  .app {
+    background-size: cover;
+    background-position: top center;
+  }
+}
+
+@media (max-width: 768px) {
+  .app {
+    background-size: cover;
+    background-position: top center;
+  }
+}
+
+@media (max-width: 480px) {
+  .app {
+    background-size: cover;
+    background-position: top center;
+  }
+}
