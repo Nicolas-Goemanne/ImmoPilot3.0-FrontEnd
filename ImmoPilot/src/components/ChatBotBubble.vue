@@ -201,7 +201,7 @@ const sendMessage = () => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px; /* Ruimte tussen berichten */
+  gap: 10px; 
 }
 
 /* ✅ Algemene opmaak voor berichten */
@@ -248,8 +248,6 @@ const sendMessage = () => {
   padding: 10px;
 }
 
-
-/* ✅ Bot Avatar */
 .bot-avatar {
   width: 50px;
   height: 50px;
@@ -257,7 +255,6 @@ const sendMessage = () => {
   flex-shrink: 0;
 }
 
-/* ✅ Tekst correct uitgelijnd */
 .message-content {
   display: flex;
   align-items: center;
@@ -269,8 +266,6 @@ const sendMessage = () => {
   vertical-align: middle;
 }
 
-
-/* Input & knoppen */
 .chat-input {
   display: flex;
   padding: 10px;
