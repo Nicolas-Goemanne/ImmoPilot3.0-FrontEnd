@@ -1,45 +1,78 @@
 <script setup>
-import { ref } from 'vue';
-import { useChatStore } from '@/stores/chatStore';
+import { ref, computed, onMounted } from "vue";
+import { useAuth0 } from "@auth0/auth0-vue";
+import { useChatStore } from "@/stores/chatStore";
+import { fetchProtectedData } from "@/services/apiService";
 
 // Import PNG files met ?url
-import openaiIcon from '/openai.PNG?url';
-import deepseekIcon from '/deepseek1.PNG?url';
-import sqlIcon from '/sql.PNG?url';
-import claireIcon from '/claire.PNG?url';
-import logoIcon from '/logosoftedge.png?url';
-import nameIcon from '/name.PNG?url';
+import openaiIcon from "/openai.PNG?url";
+import deepseekIcon from "/deepseek1.PNG?url";
+import sqlIcon from "/sql.PNG?url";
+import claireIcon from "/claire.PNG?url";
+import logoIcon from "/logosoftedge.png?url";
+import nameIcon from "/name.PNG?url";
 
+const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 const chatStore = useChatStore();
-const message = ref('');
+const message = ref("");
 const isOpen = ref(false);
 const showAgentSelection = ref(false);
-const selectedAgent = ref('openai');
+const selectedAgent = ref("openai");
+const isLoading = ref(false);
+const showAllResults = ref(false); // ✅ Toggle voor "Toon meer resultaten"
 
-// Correcte agent logo-paden + beschrijving
+// ✅ Agent-instellingen
 const agents = {
-  openai: {
-    icon: openaiIcon,
-    name: "OpenAI",
-    description: "Een krachtige AI voor algemene vragen en diepgaande antwoorden.",
-  },
-  deepseek: {
-    icon: deepseekIcon,
-    name: "DeepSeek",
-    description: "AI-model gespecialiseerd in redeneren en logische analyses.",
-  },
-  sql: {
-    icon: sqlIcon,
-    name: "SQL",
-    description: "Haal nauwkeurige data uit onze SQL-database met AI-gestuurde queries.",
-  },
-  claire: {
-    icon: claireIcon,
-    name: "Claire",
-    description: "Onze eigen chatbot met specifieke kennis over vastgoed en administratie.",
-  },
+  openai: { icon: openaiIcon, name: "OpenAI", description: "Een krachtige AI voor algemene vragen en diepgaande antwoorden." },
+  deepseek: { icon: deepseekIcon, name: "DeepSeek", description: "AI-model gespecialiseerd in redeneren en logische analyses." },
+  sql: { icon: sqlIcon, name: "SQL", description: "Haal nauwkeurige data uit onze SQL-database met AI-gestuurde queries." },
+  claire: { icon: claireIcon, name: "Claire", description: "Onze eigen chatbot met specifieke kennis over vastgoed en administratie." }
 };
 
+// ✅ Token ophalen
+const getToken = async () => {
+  try {
+    return await getAccessTokenSilently();
+  } catch (error) {
+    console.error("Fout bij ophalen access token:", error);
+    return null;
+  }
+};
+
+// ✅ API-aanroep met token
+const sendMessage = async () => {
+  if (!message.value.trim()) return;
+  
+  isLoading.value = true;
+  chatStore.addMessage(message.value, "user"); // ✅ User message toevoegen
+
+  try {
+    const token = await getToken();
+    if (!token) {
+      console.error("Geen geldig access token");
+      return;
+    }
+
+    const response = await fetchProtectedData(token, message.value, selectedAgent.value);
+    
+    if (response) {
+      if (response.answer) {
+        chatStore.addMessage(response.answer, "bot"); 
+      } else if (response.data) {
+        chatStore.addMessage(response.data, "sql"); 
+      }
+    }
+
+    message.value = "";
+  } catch (error) {
+    console.error("Fout bij API-aanroep:", error);
+    chatStore.addMessage("Fout bij ophalen van antwoord", "bot");
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+// ✅ Chat openen/sluiten
 const toggleChat = () => {
   isOpen.value = !isOpen.value;
   showAgentSelection.value = false;
@@ -54,75 +87,97 @@ const selectAgent = (agent) => {
   showAgentSelection.value = false;
 };
 
-const sendMessage = () => {
-  if (message.value.trim()) {
-    chatStore.sendMessage(message.value);
-    message.value = '';
-  }
-};
+// ✅ Filtering en limiet voor resultaten
+const filteredData = computed(() => {
+  if (!chatStore.messages.length) return [];
+  const lastMessage = chatStore.messages[chatStore.messages.length - 1];
+  if (lastMessage.type !== "sql") return [];
+
+  const data = lastMessage.text;
+  if (!Array.isArray(data)) return [];
+
+  // ✅ Beperk standaard tot 50 rijen, toon alle rijen als showAllResults actief is
+  return showAllResults.value ? data : data.slice(0, 50);
+});
+
 </script>
 
 <template>
   <div class="chat-wrapper">
     <!-- 🔘 Clickable logo als popup-button -->
     <div v-if="!isOpen" class="chat-logo" @click="toggleChat">
-      <img :src="logoIcon" alt="ChatBot Logo" class="chat-logo-icon">
+      <img :src="logoIcon" alt="ChatBot Logo" class="chat-logo-icon" />
     </div>
 
-       <!-- 💬 De chatbox -->
-       <div v-if="isOpen" class="chat-container">
+    <!-- 💬 De chatbox -->
+    <div v-if="isOpen" class="chat-container">
       <div class="chat-header">
-        <img :src="nameIcon" alt="ImmoPilot" class="chat-title">
+        <img :src="nameIcon" alt="ImmoPilot" class="chat-title" />
         <button class="close-button" @click="toggleChat">✖</button>
       </div>
 
-<!-- 🔹 Chat Messages -->
-<div ref="chatContainer" class="chat-messages">
-  
-  <!-- Welcome Message (nu hetzelfde als bot-bericht) -->
-  <div class="message bot-message">
-    <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar">
-    <span class="message-text">Hallo! Ik ben ImmoPilot! Selecteer eerst jouw agent en stel gerust je vraag.</span>
-  </div>
+      <!-- 🔹 Chat Messages -->
+      <div ref="chatContainer" class="chat-messages">
+        <!-- Welcome Message als bot-bericht -->
+        <div class="message bot-message">
+          <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+          <span class="message-text">Hallo! Ik ben ImmoPilot! Selecteer eerst jouw agent en stel gerust je vraag.</span>
+        </div>
 
-  <!-- Dynamische berichten -->
-  <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : 'bot-message']">
-    
-    <!-- Botbericht met logo -->
-    <template v-if="msg.type !== 'user'">
-      <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar">
-      <span class="message-text">{{ msg.text }}</span>
-    </template>
+        <!-- Dynamische berichten -->
+        <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : 'bot-message']">
+          
+          <!-- Botbericht met logo -->
+          <template v-if="msg.type === 'bot'">
+            <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+            <span class="message-text">{{ msg.text }}</span>
+          </template>
 
-    <!-- Userbericht zonder avatar -->
-    <template v-else>
-      <span class="message-text">{{ msg.text }}</span>
-    </template>
-  </div>
+          <!-- SQL Response als tabel -->
+          <template v-else-if="msg.type === 'sql'">
+            <div class="bot-message">
+              <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+              <div class="sql-response">
+                <table class="sql-table">
+                  <thead>
+                    <tr>
+                      <th v-for="(value, key) in filteredData[0]" :key="key">{{ key }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in filteredData" :key="row.id">
+                      <td v-for="(value, key) in row" :key="key" :title="value">{{ value }}</td> 
+                    </tr>
+                  </tbody>
+                </table>
 
-</div>
+                <!-- ✅ Toon meer resultaten knop -->
+                <button v-if="!showAllResults && filteredData.length >= 50" @click="showAllResults = true" class="show-more-btn">
+                  Toon meer resultaten
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <!-- Userbericht zonder avatar -->
+          <template v-else>
+            <span class="message-text">{{ msg.text }}</span>
+          </template>
+        </div>
+
+        <!-- 🔄 Loading Indicator -->
+        <div v-if="isLoading" class="thinking">ImmoPilot is thinking...</div>
+      </div>
 
       <!-- 🔹 Chat Input & Agent selectie -->
       <div class="chat-input">
-        <input v-model="message" placeholder="Typ hier je bericht..." class="input-text">
+        <input v-model="message" placeholder="Typ hier je bericht..." class="input-text" />
         <button class="agent-selector" @click="toggleAgentSelection">
-          <img :src="agents[selectedAgent].icon" alt="Agent Logo" class="agent-icon">
+          <img :src="agents[selectedAgent].icon" alt="Agent Logo" class="agent-icon" />
         </button>
-        <button class="send-button" @click="sendMessage">Send</button>
-      </div>
-
-      <!-- 🔹 Agent Selectie (nu met uitleg per agent) -->
-      <div v-if="showAgentSelection" class="agent-dropdown">
-        <h3 class="agent-header">Kies je AI-assistent:</h3>
-        <ul>
-          <li v-for="(agent, key) in agents" :key="key" @click="selectAgent(key)">
-            <img :src="agent.icon" class="agent-icon">
-            <div class="agent-info">
-              <strong class="agent-name">{{ agent.name }}</strong>
-              <p>{{ agent.description }}</p>
-            </div>
-          </li>
-        </ul>
+        <button class="send-button" @click="sendMessage" :disabled="isLoading">
+          {{ isLoading ? "..." : "Send" }}
+        </button>
       </div>
     </div>
   </div>
@@ -229,18 +284,17 @@ const sendMessage = () => {
 }
 
 /* ✅ Botberichten met logo (LINKS) */
+
 .bot-message {
-  align-self: flex-start !important;
   display: flex;
   align-items: center;
   gap: 10px;
   border-radius: 8px;
-  border: 1px solid #d1d1d1 !important;
+  border: 1px solid #d1d1d1;
   width: 100%;
   padding: 10px;
   background: white;
 }
-
 /* ✅ User-berichten (RECHTS) */
 .user-message {
   align-self: flex-end !important;
@@ -359,5 +413,69 @@ const sendMessage = () => {
 .agent-name {
   color:#5ff38e;
   font-weight: bold;
+}
+
+.sql-response {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d1d1;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+.sql-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  word-wrap: break-word;
+}
+
+.sql-table th, .sql-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ✅ Toon volledige tekst bij hover */
+.sql-table td:hover {
+  overflow: visible;
+  white-space: normal;
+  word-wrap: break-word;
+  z-index: 10;
+  position: relative;
+  background: #f4f4f4;
+}
+
+.thinking {
+  font-style: italic;
+  color: #5ff38e;
+  text-align: center;
+  margin-top: 10px;
+}
+
+/* ✅ Stijl voor de "Toon meer resultaten"-knop */
+.show-more-btn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: none;
+  background-color: #5ff38e;
+  color: white;
+  font-size: 14px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.show-more-btn:hover {
+  background-color: #4dd678;
 }
 </style>
