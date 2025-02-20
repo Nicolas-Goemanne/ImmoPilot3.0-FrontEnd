@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import { useAuth0 } from "@auth0/auth0-vue";
 import { useChatStore } from "@/stores/chatStore";
 import { fetchProtectedData } from "@/services/apiService";
@@ -19,7 +19,6 @@ const isOpen = ref(false);
 const showAgentSelection = ref(false);
 const selectedAgent = ref("openai");
 const isLoading = ref(false);
-const showAllResults = ref(false); // ✅ Toggle voor "Toon meer resultaten"
 
 // ✅ Agent-instellingen
 const agents = {
@@ -42,9 +41,9 @@ const getToken = async () => {
 // ✅ API-aanroep met token
 const sendMessage = async () => {
   if (!message.value.trim()) return;
-  
+
   isLoading.value = true;
-  chatStore.addMessage(message.value, "user"); // ✅ User message toevoegen
+  chatStore.addMessage(message.value, "user");
 
   try {
     const token = await getToken();
@@ -54,12 +53,29 @@ const sendMessage = async () => {
     }
 
     const response = await fetchProtectedData(token, message.value, selectedAgent.value);
-    
+
     if (response) {
       if (response.answer) {
-        chatStore.addMessage(response.answer, "bot"); 
+        chatStore.addMessage(response.answer, "bot");
       } else if (response.data) {
-        chatStore.addMessage(response.data, "sql"); 
+        const filteredData = filterColumns(response.data);
+
+        // ✅ **Check hoeveel tabellen er zijn**
+        const tabelNamen = new Set(filteredData.map(row => row.TabelNaam || "Onbekende tabel"));
+        const aantalTabellen = tabelNamen.size;
+
+        if (aantalTabellen > 5) {
+          // 🛑 Vraag om te verfijnen als er meer dan 5 tabellen zijn
+          const tabelLijst = Array.from(tabelNamen).join(", ");
+          chatStore.addMessage(
+            `⚠️ Er zijn ${aantalTabellen} tabellen in de resultaten. Wil je een specifieke tabel bekijken? Beschikbare opties: ${tabelLijst}.`,
+            "bot"
+          );
+          return;
+        }
+
+        // 🚀 **Toon de data als het aantal tabellen OK is**
+        chatStore.addMessage(filteredData, "sql");
       }
     }
 
@@ -71,6 +87,8 @@ const sendMessage = async () => {
     isLoading.value = false;
   }
 };
+
+
 
 // ✅ Chat openen/sluiten
 const toggleChat = () => {
@@ -87,19 +105,20 @@ const selectAgent = (agent) => {
   showAgentSelection.value = false;
 };
 
-// ✅ Filtering en limiet voor resultaten
-const filteredData = computed(() => {
-  if (!chatStore.messages.length) return [];
-  const lastMessage = chatStore.messages[chatStore.messages.length - 1];
-  if (lastMessage.type !== "sql") return [];
+// ✅ Functie om onnodige kolommen te filteren
+const filterColumns = (data) => {
+  if (!data || !Array.isArray(data)) return [];
 
-  const data = lastMessage.text;
-  if (!Array.isArray(data)) return [];
-
-  // ✅ Beperk standaard tot 50 rijen, toon alle rijen als showAllResults actief is
-  return showAllResults.value ? data : data.slice(0, 50);
-});
-
+  return data.map(row => {
+    const filteredRow = {};
+    Object.keys(row).forEach(key => {
+      if (typeof row[key] !== "object" && row[key] !== null) {
+        filteredRow[key] = row[key]; // ✅ Alleen platte waarden behouden (geen nested objecten)
+      }
+    });
+    return filteredRow;
+  });
+};
 </script>
 
 <template>
@@ -125,7 +144,8 @@ const filteredData = computed(() => {
         </div>
 
         <!-- Dynamische berichten -->
-        <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : 'bot-message']">
+        <div v-for="msg in chatStore.messages" :key="msg.id" 
+             :class="['message', msg.type === 'user' ? 'user-message' : 'bot-message']">
           
           <!-- Botbericht met logo -->
           <template v-if="msg.type === 'bot'">
@@ -133,31 +153,33 @@ const filteredData = computed(() => {
             <span class="message-text">{{ msg.text }}</span>
           </template>
 
-          <!-- SQL Response als tabel -->
-          <template v-else-if="msg.type === 'sql'">
-            <div class="bot-message">
-              <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
-              <div class="sql-response">
-                <table class="sql-table">
-                  <thead>
-                    <tr>
-                      <th v-for="(value, key) in filteredData[0]" :key="key">{{ key }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="row in filteredData" :key="row.id">
-                      <td v-for="(value, key) in row" :key="key" :title="value">{{ value }}</td> 
-                    </tr>
-                  </tbody>
-                </table>
+         <!-- SQL Response als tabel -->
+<template v-else-if="msg.type === 'sql'">
+  <div class="bot-message">
+    <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+    <div class="sql-response">
+      <table class="sql-table">
+        <thead>
+          <tr>
+            <th v-for="(value, key) in filterColumns(msg.text)[0]" :key="key">{{ key }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(row, index) in filterColumns(msg.text).slice(0, 10)" :key="index">
+            <td v-for="(value, key) in row" :key="key" :title="value">{{ value }}</td> 
+          </tr>
+        </tbody>
+      </table>
 
-                <!-- ✅ Toon meer resultaten knop -->
-                <button v-if="!showAllResults && filteredData.length >= 50" @click="showAllResults = true" class="show-more-btn">
-                  Toon meer resultaten
-                </button>
-              </div>
-            </div>
-          </template>
+      <!-- ✅ "Toon meer resultaten"-knop alleen als er meer dan 10 resultaten zijn -->
+      <button v-if="filterColumns(msg.text).length > 10" 
+              class="show-more-btn" 
+              @click="toonMeerResultaten(msg.text)">
+        Toon meer resultaten
+      </button>
+    </div>
+  </div>
+</template>
 
           <!-- Userbericht zonder avatar -->
           <template v-else>
@@ -165,7 +187,7 @@ const filteredData = computed(() => {
           </template>
         </div>
 
-        <!-- 🔄 Loading Indicator -->
+        <!-- 🔄 Loading Indicator aangepast -->
         <div v-if="isLoading" class="thinking">ImmoPilot is thinking...</div>
       </div>
 
@@ -179,9 +201,24 @@ const filteredData = computed(() => {
           {{ isLoading ? "..." : "Send" }}
         </button>
       </div>
+
+      <!-- 🔹 Agent Selectie -->
+      <div v-if="showAgentSelection" class="agent-dropdown">
+        <h3 class="agent-header">Kies je AI-assistent:</h3>
+        <ul>
+          <li v-for="(agent, key) in agents" :key="key" @click="selectAgent(key)">
+            <img :src="agent.icon" class="agent-icon" />
+            <div class="agent-info">
+              <strong class="agent-name">{{ agent.name }}</strong>
+              <p>{{ agent.description }}</p>
+            </div>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
+
 
 <style scoped>
 /* Wrapper voor de chat */
