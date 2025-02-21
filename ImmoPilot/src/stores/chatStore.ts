@@ -1,17 +1,12 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
 
-interface Message {
-  id: number;
-  text: string;
-  type: "user" | "bot";
-}
-
 export const useChatStore = defineStore("chat", () => {
-  const messages = ref<Message[]>([]);
+  const messages = ref<{ id: number; text: string; type: "user" | "bot" }[]>([]);
+  let messageId = 1;
 
   const addMessage = (text: string, type: "user" | "bot") => {
-    messages.value.push({ id: Date.now(), text, type });
+    messages.value.push({ id: messageId++, text, type });
   };
 
   return { messages, addMessage };
