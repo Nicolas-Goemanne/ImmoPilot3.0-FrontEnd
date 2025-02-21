@@ -3,6 +3,8 @@ import { ref } from "vue";
 import { useAuth0 } from "@auth0/auth0-vue";
 import { useChatStore } from "@/stores/chatStore";
 import { fetchProtectedData } from "@/services/apiService";
+import { fetchClaireResponse } from "@/services/claireApiService";
+import { nextTick } from "vue";
 
 // ✅ Import AI-agent icons
 import openaiIcon from "/openai.PNG?url";
@@ -39,42 +41,61 @@ const getToken = async () => {
   }
 };
 
-// ✅ Stuur een bericht naar de AI API
+// ✅ Chat scrollt automatisch naar het laatste bericht
+const chatContainer = ref(null);
+
+const scrollToBottom = () => {
+  nextTick(() => {
+    if (chatContainer.value) {
+      chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    }
+  });
+};
+
 const sendMessage = async () => {
   if (!message.value.trim()) return;
 
   isLoading.value = true;
-  chatStore.addMessage(message.value, "user");
+  const userMessage = message.value; // ✅ Bewaar de user input vóór resetten
+  chatStore.addMessage(userMessage, "user");
+  scrollToBottom();
+
+  // ✅ Reset inputveld na opslaan van het bericht
+  message.value = "";  
 
   try {
     const token = await getToken();
     if (!token) {
-      console.error("⚠️ Geen geldig access token");
       chatStore.addMessage("⚠️ Fout: Kan geen toegangstoken ophalen.", "bot");
       return;
     }
 
-    const response = await fetchProtectedData(token, message.value, selectedAgent.value);
+    let response = null;
+
+    // ✅ AI Agent bepalen
+    if (selectedAgent.value === "claire") {
+      response = await fetchClaireResponse(userMessage); // Gebruik de bewaarde input
+    } else {
+      response = await fetchProtectedData(token, userMessage, selectedAgent.value);
+    }
 
     if (!response) {
       chatStore.addMessage("⚠️ Geen antwoord ontvangen van de server.", "bot");
-      return;
-    }
-
-    if (response.answer) {
+    } else if (response.answer) {
       chatStore.addMessage(response.answer, "bot");
     } else if (response.data) {
       chatStore.addMessage(response.data, "sql");
     }
-
-    message.value = "";
   } catch (error) {
     console.error("⚠️ Fout bij API-aanroep:", error);
     chatStore.addMessage("⚠️ Fout bij ophalen van antwoord", "bot");
   } finally {
     isLoading.value = false;
+    scrollToBottom();
   }
 };
+
+
 
 // ✅ Chat open/dicht
 const toggleChat = () => {
@@ -92,6 +113,8 @@ const selectAgent = (agent) => {
   selectedAgent.value = agent;
   showAgentSelection.value = false;
 };
+
+
 </script>
 
 <template>
@@ -108,7 +131,7 @@ const selectAgent = (agent) => {
         <button class="close-button" @click="toggleChat">✖</button>
       </div>
 
-      <div class="chat-messages">
+      <div ref="chatContainer" class="chat-messages">
         <!-- 📢 Welkomstbericht -->
         <div class="message bot-message">
           <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
@@ -147,8 +170,11 @@ const selectAgent = (agent) => {
           </template>
         </div>
 
-        <!-- ⏳ Loading Indicator -->
-        <div v-if="isLoading" class="thinking">ImmoPilot is aan het nadenken...</div>
+        <div v-if="isLoading" class="thinking-animation">
+  <div class="thinking-dots">
+    <span></span><span></span><span></span>
+  </div>
+</div>
       </div>
 
       <!-- 📝 Chat Input & Agent selectie -->
@@ -180,9 +206,8 @@ const selectAgent = (agent) => {
 </template>
 
 
-
 <style scoped>
-/* Wrapper voor de chat */
+/* ✅ Wrapper voor de chat */
 .chat-wrapper {
   position: fixed;
   bottom: 20px;
@@ -210,20 +235,21 @@ const selectAgent = (agent) => {
 /* 💬 Chatbox Styling */
 .chat-container {
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 500px;
-  height: 65vh;
-  max-height: 75vh;
+  bottom: 10px;
+  right: 10px;
+  width: 600px; /* ✅ Breder */
+  height: 80vh; /* ✅ Groter */
+  max-height: 85vh;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
   border: 2px solid #5ff38e;
+  overflow: hidden;
 }
 
-/* Header */
+/* ✅ Chat Header */
 .chat-header {
   color: white;
   padding: 12px;
@@ -260,29 +286,15 @@ const selectAgent = (agent) => {
 /* ✅ Algemene opmaak voor berichten */
 .message {
   max-width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  font-weight: 500;
+  padding: 8px;
+  font-size: 14px; /* ✅ Kleinere font voor betere leesbaarheid */
   color: rgb(100, 100, 100);
   word-wrap: break-word;
   display: flex;
   align-items: center;
 }
 
-/* ✅ Welcome Message (nu zelfde als bot message) */
-.welcome-message {
-  max-width: 100%;
-  padding: 10px;
-  font-size: 16px;
-  font-weight: 500;
-  color: rgb(100, 100, 100);
-  word-wrap: break-word;
-  display: flex;
-  align-items: center;
-}
-
-/* ✅ Botberichten met logo (LINKS) */
-
+/* ✅ Bot- en userberichten */
 .bot-message {
   display: flex;
   align-items: center;
@@ -290,34 +302,25 @@ const selectAgent = (agent) => {
   border-radius: 8px;
   border: 1px solid #d1d1d1;
   width: 100%;
-  padding: 10px;
+  padding: 8px;
   background: white;
 }
-/* ✅ User-berichten (RECHTS) */
+
 .user-message {
   align-self: flex-end !important;
   text-align: right !important;
-  padding: 10px;
+  padding: 8px;
 }
 
+/* ✅ Bot Avatar */
 .bot-avatar {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.message-content {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.message-text {
-  display: inline-block;
-  vertical-align: middle;
-}
-
+/* ✅ Chat Input */
 .chat-input {
   display: flex;
   padding: 10px;
@@ -327,13 +330,16 @@ const selectAgent = (agent) => {
 
 .input-text {
   flex: 1;
-  padding: 10px;
+  padding: 8px;
   border-radius: 8px;
-  border: 1px solid  #216e39;
-  ;
+  border: 1px solid #5ff38e;
+  color: rgb(100, 100, 100);
+  outline: none;
   font-size: 14px;
+  transition: border-color 0.3s ease-in-out;
 }
 
+/* 🔹 Agent Selectie */
 .agent-selector {
   background: none;
   border: none;
@@ -348,17 +354,23 @@ const selectAgent = (agent) => {
   margin-right: 5px;
 }
 
+/* ✅ Send-knop */
 .send-button {
   background-color: #5ff38e;
   border: none;
   color: white;
-  padding: 12px;
+  padding: 10px;
   border-radius: 8px;
   cursor: pointer;
   font-size: 14px;
 }
 
-/* 🔹 Agent Selectie met uitleg */
+.send-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+/* 🔹 AI Agent Selectie */
 .agent-dropdown {
   position: absolute;
   bottom: 70px;
@@ -377,7 +389,6 @@ const selectAgent = (agent) => {
   margin-bottom: 10px;
   color: #5ff38e;
 }
-
 
 .agent-dropdown ul {
   list-style: none;
@@ -413,6 +424,7 @@ const selectAgent = (agent) => {
   font-weight: bold;
 }
 
+/* 🔹 SQL Response styling */
 .sql-response {
   background: white;
   padding: 10px;
@@ -420,37 +432,28 @@ const selectAgent = (agent) => {
   border: 1px solid #d1d1d1;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  max-height: 250px;
+  overflow-x: auto; /* ✅ Scroll bij lange tabellen */
+  max-height: 350px;
 }
 
+/* ✅ Betere tabelopmaak */
 .sql-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
-  word-wrap: break-word;
+  table-layout: auto; /* ✅ Tabellen schalen nu beter */
+  font-size: 12px; /* ✅ Kleinere font voor meer zichtbare data */
 }
 
 .sql-table th, .sql-table td {
   border: 1px solid #ddd;
-  padding: 8px;
+  padding: 6px;
   text-align: left;
-  white-space: nowrap;
+  white-space: normal; /* ✅ Volledige inhoud tonen, geen afkapping */
   overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-word;
 }
 
-/* ✅ Toon volledige tekst bij hover */
-.sql-table td:hover {
-  overflow: visible;
-  white-space: normal;
-  word-wrap: break-word;
-  z-index: 10;
-  position: relative;
-  background: #f4f4f4;
-}
-
+/* ✅ Loading Indicator */
 .thinking {
   font-style: italic;
   color: #5ff38e;
@@ -458,22 +461,45 @@ const selectAgent = (agent) => {
   margin-top: 10px;
 }
 
-/* ✅ Stijl voor de "Toon meer resultaten"-knop */
-.show-more-btn {
-  margin-top: 10px;
-  padding: 8px 12px;
-  border: none;
-  background-color: #5ff38e;
-  color: white;
-  font-size: 14px;
-  border-radius: 5px;
-  cursor: pointer;
-  display: block;
-  width: 100%;
-  text-align: center;
+/* ✅ Responsiviteit */
+@media (max-width: 768px) {
+  .chat-container {
+    width: 90%;
+    height: 85vh;
+  }
 }
 
-.show-more-btn:hover {
-  background-color: #4dd678;
+/* ✅ Laadanimatie in de chat */
+.thinking-animation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
 }
+
+.thinking-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 3px;
+  background-color: #5ff38e;
+  border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0% { opacity: 0.2; }
+  50% { opacity: 1; }
+  100% { opacity: 0.2; }
+}
+
+
 </style>
