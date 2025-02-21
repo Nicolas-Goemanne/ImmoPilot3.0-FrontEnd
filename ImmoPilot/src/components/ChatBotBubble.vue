@@ -52,6 +52,32 @@ const scrollToBottom = () => {
   });
 };
 
+const copiedState = ref({}); // Object om bij te houden welke berichten gekopieerd zijn
+
+const copyToClipboard = (data, messageId) => {
+  let textToCopy = "";
+
+  if (typeof data === "string") {
+    textToCopy = data; // Normale bot-tekst
+  } else if (Array.isArray(data)) {
+    // ✅ SQL-tabel omzetten naar kopieerbare tekst
+    const headers = Object.keys(data[0] || {}).join("\t"); // Kolomnamen gescheiden door tabs
+    const rows = data.map(row => Object.values(row).join("\t")).join("\n"); // Rijwaarden
+    textToCopy = `${headers}\n${rows}`;
+  }
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    copiedState.value[messageId] = true; // ✅ Zet status op gekopieerd
+
+    // ✅ Laat het vinkje minstens 1 min  staan
+    setTimeout(() => {
+      copiedState.value[messageId] = false;
+    }, 60000);
+  }).catch(err => {
+    console.error("❌ Fout bij kopiëren:", err);
+  });
+};
+
 const sendMessage = async () => {
   if (!message.value.trim()) return;
 
@@ -143,6 +169,13 @@ const selectAgent = (agent) => {
           <template v-if="msg.type === 'bot'">
             <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
             <span class="message-text">{{ msg.text }}</span>
+            <button 
+        class="copy-button" 
+        @click="copyToClipboard(msg.text, msg.id)"
+      >
+        <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
+        <span v-else class="icon-copy"></span>
+      </button>
           </template>
 
           <template v-else-if="msg.type === 'sql'">
@@ -161,6 +194,13 @@ const selectAgent = (agent) => {
                     </tr>
                   </tbody>
                 </table>
+                <button 
+        class="copy-button table-copy-button" 
+        @click="copyToClipboard(msg.text, msg.id)"
+      >
+        <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
+        <span v-else class="icon-copy"></span>
+      </button>
               </div>
             </div>
           </template>
@@ -451,6 +491,46 @@ const selectAgent = (agent) => {
   white-space: normal; /* ✅ Volledige inhoud tonen, geen afkapping */
   overflow: hidden;
   word-break: break-word;
+}
+
+/* ✅ Zorg dat copy-knoppen correct rechts staan */
+.copy-button {
+  background: none;
+  border: none;
+  color: #5ff38e;
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: auto; /* ✅ Zet de knop helemaal rechts */
+  display: flex;
+  align-items: center;
+  transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+  border-radius: 5px;
+  border: 1px solid #d1d1d1;
+  padding: 3px 6px;
+  margin-left: 1px; /* ✅ Ruimte tussen de tekst en de knop */
+  margin-top: 3px; /* ✅ Niet tegen de bovenkant van de chatmessage plakken */
+}
+
+.copy-button:hover {
+  transform: scale(1.1); /* ✅ Kleine hover-animatie */
+  background: #f5f5f5; /* ✅ Lichtgrijze achtergrond bij hover */
+  border-color: #bcbcbc; /* ✅ Iets donkerdere grijze border */
+}
+
+/* ✅ Icon voor copy (📋) */
+.icon-copy::before {
+  content: "📄"; /* Kan later vervangen worden door een SVG */
+  font-size: 14px;
+  
+}
+
+/* ✅ Icon voor checkmark (✔️) */
+.icon-checkmark::before {
+  content: "✔"; /* Kan later vervangen worden door een SVG */
+  font-size: 14px;
+  border-color: #5ff38e;
+  color: #4dd678; /* ✅ Groene kleur voor succes */
+  
 }
 
 /* ✅ Loading Indicator */
