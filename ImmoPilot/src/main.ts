@@ -12,11 +12,12 @@ app.use(createPinia());
 
 app.use(
   createAuth0({
-    domain: "dev-o514fw216cq70tfu.eu.auth0.com",
-    clientId: "LSQoSMLiOgNI2AOJsU58XEB8VTlPwLTe",
+    domain: "organimmo.eu.auth0.com",
+    clientId: "2ITmJfmJ1Ra0NQsSEHT2v6tkATqs5dCh",
     authorizationParams: {
       redirect_uri: window.location.origin,
-      audience: "https://localhost:7023/api/OpenAI",
+      audience: "https://vives-chatbot.organimmo.com",
+      scope: "openid profile email",
     }
   })
 );

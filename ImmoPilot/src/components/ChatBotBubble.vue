@@ -6,6 +6,8 @@ import { fetchProtectedData } from "@/services/apiService";
 import { fetchClaireResponse } from "@/services/claireApiService";
 import { nextTick } from "vue";
 
+
+
 // ✅ Import AI-agent icons
 import openaiIcon from "/openai.PNG?url";
 import deepseekIcon from "/deepseek1.PNG?url";
@@ -22,6 +24,7 @@ const isOpen = ref(false);
 const showAgentSelection = ref(false);
 const selectedAgent = ref("openai");
 const isLoading = ref(false);
+
 
 // ✅ AI-Agent instellingen
 const agents = {
@@ -121,6 +124,37 @@ const sendMessage = async () => {
   }
 };
 
+defineProps({
+  message: String
+});
+
+// Functie om te detecteren of een bericht een lijst bevat
+const isList = (message) => {
+  return /\d+\.\s/.test(message); // Alleen lijsten starten met "1."
+};
+
+// Functie om de eerste lijn van een bericht op te halen (zonder bulletpoint)
+const getFirstLine = (message) => {
+  if (!isList(message)) return message; // Als het geen lijst is, retourneer hele bericht
+
+  const firstLine = message.split(/\d+\.\s/)[0].trim(); // Pak alles vóór "1."
+  return firstLine;
+};
+
+// Functie om de lijst correct te parsen
+const parseList = (message) => {
+  if (!isList(message)) return [];
+
+  let lines = message
+    .replaceAll("**", "") // Vervang ** door lege string
+    .replaceAll("*", " ") // Vervang * door een spatie
+    .split(/\d+\.\s/) // Splits enkel op genummerde lijsten (1., 2., 3., ...)
+    .filter(item => item.trim() !== ""); // Verwijder lege elementen
+
+  lines.shift(); // Verwijder de eerste lijn, die nu apart wordt getoond
+
+  return lines;
+};
 
 
 // ✅ Chat open/dicht
@@ -168,14 +202,28 @@ const selectAgent = (agent) => {
         <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : 'bot-message']">
           <template v-if="msg.type === 'bot'">
             <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
-            <span class="message-text">{{ msg.text }}</span>
+
+            <template v-if="isList(msg.text)">
+    <div>
+      <span class="message-text">{{ getFirstLine(msg.text) }}</span>
+      <ul class="styled-list">
+        <li v-for="(item, index) in parseList(msg.text)" :key="index">
+          <span class="bullet-point">•</span> <span class="list-text">{{ item }}</span>
+        </li>
+      </ul>
+    </div>
+  </template>
+  <template v-else>
+    <span class="message-text">{{ msg.text }}</span>
+  </template>
+
             <button 
-        class="copy-button" 
-        @click="copyToClipboard(msg.text, msg.id)"
-      >
-        <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
-        <span v-else class="icon-copy"></span>
-      </button>
+              class="copy-button" 
+              @click="copyToClipboard(msg.text, msg.id)"
+            >
+              <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
+              <span v-else class="icon-copy"></span>
+            </button>
           </template>
 
           <template v-else-if="msg.type === 'sql'">
@@ -195,12 +243,12 @@ const selectAgent = (agent) => {
                   </tbody>
                 </table>
                 <button 
-        class="copy-button table-copy-button" 
-        @click="copyToClipboard(msg.text, msg.id)"
-      >
-        <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
-        <span v-else class="icon-copy"></span>
-      </button>
+                  class="copy-button table-copy-button" 
+                  @click="copyToClipboard(msg.text, msg.id)"
+                >
+                  <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
+                  <span v-else class="icon-copy"></span>
+                </button>
               </div>
             </div>
           </template>
@@ -211,10 +259,10 @@ const selectAgent = (agent) => {
         </div>
 
         <div v-if="isLoading" class="thinking-animation">
-  <div class="thinking-dots">
-    <span></span><span></span><span></span>
-  </div>
-</div>
+          <div class="thinking-dots">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
       </div>
 
       <!-- 📝 Chat Input & Agent selectie -->
@@ -329,7 +377,7 @@ const selectAgent = (agent) => {
   padding: 8px;
   font-size: 14px; /* ✅ Kleinere font voor betere leesbaarheid */
   color: rgb(100, 100, 100);
-  word-wrap: break-word;
+  word-break: break-word;
   display: flex;
   align-items: center;
 }
@@ -575,11 +623,41 @@ const selectAgent = (agent) => {
   animation-delay: 0.4s;
 }
 
+/* ✅ Stijl voor lijst-items */
+.styled-list {
+  list-style: none;
+  padding: 10px;
+  margin-top: 5px;
+  background: #ffffff;
+  
+}
+
+.styled-list li {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: 14px;
+  color: #555;
+  border-bottom: 1px solid #e1e1e1;
+}
+
+.styled-list li:last-child {
+  border-bottom: none;
+}
+
+.bullet-point {
+  font-weight: bold;
+  color: #5ff38e;
+  margin-right: 8px;
+}
+
+.list-text {
+  flex: 1;
+}
+
 @keyframes blink {
   0% { opacity: 0.2; }
   50% { opacity: 1; }
   100% { opacity: 0.2; }
 }
-
-
 </style>
