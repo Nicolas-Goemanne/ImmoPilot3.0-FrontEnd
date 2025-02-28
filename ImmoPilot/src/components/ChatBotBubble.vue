@@ -5,7 +5,7 @@ import { useChatStore } from "@/stores/chatStore";
 import { fetchProtectedData } from "@/services/apiService";
 import { fetchClaireResponse } from "@/services/claireApiService";
 
-// AI-agent icons
+// icon imports
 import openaiIcon from "/openai.PNG?url";
 import deepseekIcon from "/deepseek1.PNG?url";
 import sqlIcon from "/sql.PNG?url";
@@ -14,7 +14,7 @@ import logoIcon from "/logosoftedge.png?url";
 import nameIcon from "/name.PNG?url";
 
 // ==============================
-// STATE & REFERENTIES
+// STATE & REFERENCES
 // ==============================
 const chatStore = useChatStore();
 const { getAccessTokenSilently, isAuthenticated } = useAuth0();
@@ -35,7 +35,7 @@ const agents = {
 };
 
 // ==============================
-// UTILITY FUNCTIES
+// UTILITY FUNCTIONS
 // ==============================
 const scrollToBottom = () => {
   nextTick(() => {
@@ -90,7 +90,7 @@ const getToken = async () => {
 };
 
 // ==============================
-// CHAT FUNCTIES
+// CHAT FUNCTIONS
 // ==============================
 const toggleChat = () => {
   isOpen.value = !isOpen.value;
@@ -109,7 +109,7 @@ const selectAgent = (agentKey) => {
 const sendMessage = async () => {
   if (!message.value.trim()) return;
 
-  // Check of de gebruiker ingelogd is
+  // Check if user is logged in
   if (!isAuthenticated.value) {
     chatStore.addMessage("Gelieve eerst in te loggen voordat je ImmoPilot gebruikt.", "error");
     return;
@@ -154,7 +154,7 @@ const sendMessage = async () => {
 
 <template>
   <div class="chat-wrapper">
-    <!-- Klikbaar Chat Logo -->
+    <!-- Clickable chatbot Logo -->
     <div v-if="!isOpen" class="chat-logo" @click="toggleChat">
       <img :src="logoIcon" alt="ChatBot Logo" class="chat-logo-icon" />
     </div>
@@ -167,13 +167,13 @@ const sendMessage = async () => {
       </div>
 
       <div ref="chatContainer" class="chat-messages">
-        <!-- Welkomstbericht -->
+        <!-- Welcomemessage -->
         <div class="message bot-message">
           <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
-          <span class="message-text">Hallo! Ik ben ImmoPilot! Stel gerust je vraag.</span>
+          <span class="message-text">Hallo! Ik ben ImmoPilot! Selecteer je agent en stel me gerust je vraag.</span>
         </div>
 
-        <!-- Dynamische berichten -->
+        <!-- Dynamic messages -->
         <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : (msg.type === 'error' ? 'error-message' : 'bot-message')]">
           <template v-if="msg.type === 'bot'">
             <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
@@ -196,7 +196,7 @@ const sendMessage = async () => {
             </button>
           </template>
 
-          <!-- SQL respons blijft ongewijzigd -->
+          <!-- SQL response -->
           <template v-else-if="msg.type === 'sql'">
             <div class="bot-message">
               <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
@@ -221,14 +221,14 @@ const sendMessage = async () => {
             </div>
           </template>
 
-          <!-- Error bericht -->
+          <!-- Error message -->
           <template v-else-if="msg.type === 'error'">
             <div class="error-message">
               <span class="message-text">{{ msg.text }}</span>
             </div>
           </template>
 
-          <!-- Overige berichten -->
+          <!-- General messages -->
           <template v-else>
             <span class="message-text">{{ msg.text }}</span>
           </template>
@@ -241,7 +241,7 @@ const sendMessage = async () => {
         </div>
       </div>
 
-      <!-- Chat Input & Agent selectie -->
+      <!-- Chat Input & Agent selection -->
       <div class="chat-input">
         <input v-model="message" placeholder="Typ hier je bericht..." class="input-text" />
         <button class="agent-selector" @click="toggleAgentSelection">
@@ -252,7 +252,7 @@ const sendMessage = async () => {
         </button>
       </div>
 
-      <!-- AI Agent Selectie -->
+      <!-- AI Agent selection -->
       <div v-if="showAgentSelection" class="agent-dropdown">
         <h3 class="agent-header">Kies je AI-assistent:</h3>
         <ul>
@@ -270,7 +270,6 @@ const sendMessage = async () => {
 </template>
 
 <style scoped>
-/* Algemene styling blijft grotendeels hetzelfde */
 .chat-wrapper {
   position: fixed;
   bottom: 20px;
@@ -342,7 +341,7 @@ const sendMessage = async () => {
   align-items: center;
   color: rgb(100, 100, 100);
 }
-/* Bot- en userberichten */
+/* Bot- and user messages */
 .bot-message {
   display: flex;
   align-items: center;
@@ -358,7 +357,7 @@ const sendMessage = async () => {
   text-align: right;
   padding: 8px;
 }
-/* Error berichten met groene achtergrond en witte bold tekst */
+/* Error messages */
 .error-message {
   background-color: #5ff38e;
   border: 1px solid #5ff38e;
@@ -564,6 +563,7 @@ const sendMessage = async () => {
   50% { opacity: 1; }
   100% { opacity: 0.2; }
 }
+
 @media (max-width: 768px) {
   .chat-container {
     width: 90%;

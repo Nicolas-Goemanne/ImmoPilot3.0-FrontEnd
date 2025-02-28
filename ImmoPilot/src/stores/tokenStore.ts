@@ -10,7 +10,6 @@ export const useTokenStore = defineStore("tokenStore", () => {
   async function fetchToken() {
     try {
       token.value = await getAccessTokenSilently({
-        // Ensure the correct audience and scope are set if needed
       });
     } catch (error) {
       console.error("Error fetching access token silently:", error);

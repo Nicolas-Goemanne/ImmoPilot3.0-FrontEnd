@@ -5,7 +5,7 @@ export async function fetchClaireResponse(userMessage: string) {
 
   if (!tokenStore.claireToken) {
     console.error("❌ Claire API-token ontbreekt, ophalen...");
-    await tokenStore.fetchClaireToken(); // Probeer token opnieuw op te halen
+    await tokenStore.fetchClaireToken();
   }
 
   if (!tokenStore.claireToken) {
