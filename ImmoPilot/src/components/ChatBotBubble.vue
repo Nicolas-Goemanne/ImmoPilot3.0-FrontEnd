@@ -2,6 +2,7 @@
 import { ref, nextTick } from "vue";
 import { useAuth0 } from "@auth0/auth0-vue";
 import { useChatStore } from "@/stores/chatStore";
+import { useTokenStore } from "@/stores/tokenStore";
 import { fetchProtectedData } from "@/services/apiService";
 import { fetchClaireResponse } from "@/services/claireApiService";
 
@@ -122,25 +123,47 @@ const sendMessage = async () => {
   message.value = "";
 
   try {
-    const token = await getToken();
-    if (!token) {
-      chatStore.addMessage("Er is een probleem met de authenticatie. Probeer het later opnieuw.", "error");
-      return;
-    }
-
     let response = null;
-    if (selectedAgent.value === "claire") {
-      response = await fetchClaireResponse(userMessage);
-    } else {
-      response = await fetchProtectedData(token, userMessage, selectedAgent.value);
-    }
+    const tokenStore = useTokenStore();
 
-    if (!response) {
-      chatStore.addMessage("Ik kan momenteel geen verbinding maken met de service, probeer het later opnieuw.", "error");
-    } else if (response.answer) {
-      chatStore.addMessage(response.answer, "bot");
-    } else if (response.data) {
-      chatStore.addMessage(response.data, "sql");
+    if (selectedAgent.value === "claire") {
+      // ✅ Get Claire token
+      if (!tokenStore.claireToken) {
+        console.info("🔄 Claire-token ontbreekt, ophalen...");
+        await tokenStore.fetchClaireToken();
+      }
+
+      if (!tokenStore.claireToken) {
+        chatStore.addMessage("Er is een probleem met de authenticatie voor Claire. Probeer het later opnieuw.", "error");
+        return;
+      }
+
+      console.log("🔍 Verstuur bericht naar Claire API met token:", tokenStore.claireToken);
+      response = await fetchClaireResponse(userMessage, tokenStore.claireToken);
+
+      // ✅ Haal het antwoord correct uit de API-response van Claire
+      if (response && response.response) {
+        chatStore.addMessage(response.response, "bot"); // ✅ Bot antwoord
+      } else {
+        chatStore.addMessage("Ik heb geen antwoord ontvangen van Claire.", "error");
+      }
+    } else {
+      // ✅ Andere agents gebruiken API-token
+      const token = await getToken();
+      if (!token) {
+        chatStore.addMessage("Er is een probleem met de authenticatie. Probeer het later opnieuw.", "error");
+        return;
+      }
+
+      response = await fetchProtectedData(token, userMessage, selectedAgent.value);
+
+      if (response && response.answer) {
+        chatStore.addMessage(response.answer, "bot");
+      } else if (response && response.data) {
+        chatStore.addMessage(response.data, "sql");
+      } else {
+        chatStore.addMessage("Ik kan momenteel geen verbinding maken met de service, probeer het later opnieuw.", "error");
+      }
     }
   } catch (error) {
     console.error("⚠️ Fout bij API-aanroep:", error);
@@ -150,6 +173,8 @@ const sendMessage = async () => {
     scrollToBottom();
   }
 };
+
+
 </script>
 
 <template>

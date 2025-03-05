@@ -9,45 +9,47 @@ export const useTokenStore = defineStore("tokenStore", () => {
 
   async function fetchToken() {
     try {
-      token.value = await getAccessTokenSilently({
-      });
+      console.info("🔄 Fetching API token...");
+      token.value = await getAccessTokenSilently();
+      console.log("✅ API token retrieved:", token.value);
     } catch (error) {
-      console.error("Error fetching access token silently:", error);
+      console.error("❌ Error fetching API token:", error);
       token.value = null;
     }
   }
 
   async function fetchClaireToken() {
     try {
-      await loginWithPopup({
-        authorizationParams: {
-          audience: "https://claire-api.organimmo.com",
-          scope: "openid profile email read:messages"
-        }
-      });
-      const response = await fetch("https://app-prt-claire-prd-weu-backend.azurewebsites.net/authorize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          client_id: "2ITmJfmJ1Ra0NQsSEHT2v6tkATqs5dCh",
-          redirect_uri: window.location.origin,
-          response_type: "token",
-          scope: "openid profile email read:messages",
-          audience: "https://claire-api.organimmo.com"
-        })
+      console.info("🔄 Fetching Claire API token...");
+
+      const authParams = {
+        audience: "https://claire-api.organimmo.com",
+        scope: "openid profile email read:messages"
+      };
+
+      // ✅ Probeer eerst stilletjes een token op te halen zonder login-popup
+      const tokenResult: string = await getAccessTokenSilently({
+        authorizationParams: authParams
+      }).catch(async (error) => {
+        console.warn("⚠️ Silent token retrieval failed, requesting consent...", error);
+
+        // ✅ Toon enkel de consent-popup als het stil ophalen faalt
+        await loginWithPopup({
+          authorizationParams: { ...authParams, prompt: "consent" }
+        });
+
+        // ✅ Haal het token opnieuw op na toestemming
+        return await getAccessTokenSilently({ authorizationParams: authParams });
       });
 
-      if (!response.ok) {
-        throw new Error("Error fetching Claire API token");
+      if (!tokenResult) {
+        throw new Error("❌ Claire API token ophalen mislukt.");
       }
 
-      const data = await response.json();
-      claireToken.value = data.access_token;
-      console.log("✅ Claire API token retrieved:", claireToken.value);
+      claireToken.value = tokenResult;
+      console.log("✅ Claire API token retrieved and stored:", claireToken.value);
     } catch (error) {
-      console.error("⚠️ Error fetching Claire API token:", error);
+      console.error("❌ Error fetching Claire API token:", error);
       claireToken.value = null;
     }
   }
