@@ -195,7 +195,7 @@ const sendFollowUp = (question) => {
       <!-- Chatberichten -->
       <div ref="chatContainer" class="chat-messages">
         <!-- Welkomstbericht -->
-        <div class="message bot-message">
+        <div class="message bot-message welcome-message">
           <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
           <span class="message-text">Hallo! Ik ben ImmoPilot! Selecteer je agent en stel me gerust je vraag.</span>
         </div>
@@ -400,17 +400,19 @@ const sendFollowUp = (question) => {
   align-items: center;
   gap: 10px;
   border-radius: 8px;
-  border: 1px solid #d1d1d1;
+  border: 1px solid #5ff38e;
   width: 100%;
   padding: 8px;
   background: white;
 }
-
+.welcome-message {
+  padding-bottom: 30px;
+}
 .user-message {
-  align-self: flex-end !important; /* ✅ Zet de gehele message naar rechts */
+  align-self: flex-end !important;
   display: flex;
-  align-items: center; /* ✅ Zorgt ervoor dat de tekst en eventuele icoontjes netjes uitgelijnd blijven */
-  justify-content: flex-end; /* ✅ Zorgt ervoor dat de inhoud van de message aan de rechterkant blijft */
+  align-items: center;
+  justify-content: flex-end;
   text-align: right;
   padding: 8px;
   word-break: break-word;
