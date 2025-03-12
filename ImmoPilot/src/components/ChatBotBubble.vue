@@ -1,12 +1,12 @@
 <script setup>
 import { ref, nextTick } from "vue";
-import { useAuth0 } from "@auth0/auth0-vue";
 import { useChatStore } from "@/stores/chatStore";
-import { useTokenStore } from "@/stores/tokenStore";
+import { useAuth0 } from "@auth0/auth0-vue";
 import { fetchProtectedData } from "@/services/apiService";
+import { useTokenStore } from "@/stores/tokenStore";
 import { fetchClaireResponse } from "@/services/claireApiService";
 
-// icon imports
+// Icons
 import openaiIcon from "/openai.PNG?url";
 import deepseekIcon from "/deepseek1.PNG?url";
 import sqlIcon from "/sql.PNG?url";
@@ -14,9 +14,7 @@ import claireIcon from "/claire.PNG?url";
 import logoIcon from "/logosoftedge.png?url";
 import nameIcon from "/name.PNG?url";
 
-// ==============================
-// STATE & REFERENCES
-// ==============================
+// State en referenties
 const chatStore = useChatStore();
 const { getAccessTokenSilently, isAuthenticated } = useAuth0();
 
@@ -28,16 +26,15 @@ const isLoading = ref(false);
 const chatContainer = ref(null);
 const copiedState = ref({});
 
+// Agents
 const agents = {
-  openai: { icon: openaiIcon, name: "OpenAI", description: "Een krachtige AI voor algemene vragen en diepgaande antwoorden." },
-  deepseek: { icon: deepseekIcon, name: "DeepSeek", description: "AI-model gespecialiseerd in redeneren en logische analyses." },
-  sql: { icon: sqlIcon, name: "SQL", description: "Haal nauwkeurige data uit onze SQL-database met AI-gestuurde queries." },
-  claire: { icon: claireIcon, name: "Claire", description: "Onze eigen chatbot met specifieke kennis over vastgoed en administratie." }
+  openai: { icon: openaiIcon, name: "OpenAI", description: "Een krachtige AI voor algemene vragen." },
+  deepseek: { icon: deepseekIcon, name: "DeepSeek", description: "AI-model gespecialiseerd in logische analyses." },
+  sql: { icon: sqlIcon, name: "SQL", description: "Haal nauwkeurige data uit onze SQL-database met AI." },
+  claire: { icon: claireIcon, name: "Claire", description: "Onze eigen chatbot met vastgoedkennis." }
 };
 
-// ==============================
-// UTILITY FUNCTIONS
-// ==============================
+// Scrollfunctie
 const scrollToBottom = () => {
   nextTick(() => {
     if (chatContainer.value) {
@@ -46,6 +43,7 @@ const scrollToBottom = () => {
   });
 };
 
+// Kopieerfunctie voor berichten of tabellen
 const copyToClipboard = (data, messageId) => {
   let textToCopy = "";
   if (typeof data === "string") {
@@ -61,56 +59,32 @@ const copyToClipboard = (data, messageId) => {
       copiedState.value[messageId] = true;
       setTimeout(() => {
         copiedState.value[messageId] = false;
-      }, 60000);
+      }, 2000);
     })
     .catch(err => console.error("❌ Fout bij kopiëren:", err));
 };
 
-const isList = (text) => /\d+\.\s/.test(text);
-
-const getFirstLine = (text) => isList(text) ? text.split(/\d+\.\s/)[0].trim() : text;
-
-const parseList = (text) => {
-  if (!isList(text)) return [];
-  let lines = text
-    .replaceAll("**", "")
-    .replaceAll("*", " ")
-    .split(/\d+\.\s/)
-    .filter(item => item.trim() !== "");
-  lines.shift();
-  return lines;
-};
-
-const getToken = async () => {
-  try {
-    return await getAccessTokenSilently();
-  } catch (error) {
-    console.error("⚠️ Fout bij ophalen access token:", error);
-    return null;
-  }
-};
-
-// ==============================
-// CHAT FUNCTIONS
-// ==============================
+// Chat openen/sluiten
 const toggleChat = () => {
   isOpen.value = !isOpen.value;
   if (!isOpen.value) showAgentSelection.value = false;
 };
 
+// Agent selectie toggle
 const toggleAgentSelection = () => {
   showAgentSelection.value = !showAgentSelection.value;
 };
 
+// Agent selecteren
 const selectAgent = (agentKey) => {
   selectedAgent.value = agentKey;
   showAgentSelection.value = false;
 };
 
+// Bericht verzenden en verwerken
 const sendMessage = async () => {
   if (!message.value.trim()) return;
 
-  // Check if user is logged in
   if (!isAuthenticated.value) {
     chatStore.addMessage("Gelieve eerst in te loggen voordat je ImmoPilot gebruikt.", "error");
     return;
@@ -127,29 +101,24 @@ const sendMessage = async () => {
     const tokenStore = useTokenStore();
 
     if (selectedAgent.value === "claire") {
-      // ✅ Get Claire token
+      // Claire API
       if (!tokenStore.claireToken) {
-        console.info("🔄 Claire-token ontbreekt, ophalen...");
         await tokenStore.fetchClaireToken();
       }
-
       if (!tokenStore.claireToken) {
         chatStore.addMessage("Er is een probleem met de authenticatie voor Claire. Probeer het later opnieuw.", "error");
         return;
       }
 
-      console.log("🔍 Verstuur bericht naar Claire API met token:", tokenStore.claireToken);
       response = await fetchClaireResponse(userMessage, tokenStore.claireToken);
-
-      // ✅ Haal het antwoord correct uit de API-response van Claire
       if (response && response.response) {
-        chatStore.addMessage(response.response, "bot"); // ✅ Bot antwoord
+        chatStore.addMessage(response.response, "bot", selectedAgent.value, response.followup);
       } else {
         chatStore.addMessage("Ik heb geen antwoord ontvangen van Claire.", "error");
       }
     } else {
-      // ✅ Andere agents gebruiken API-token
-      const token = await getToken();
+      // Andere AI agents (OpenAI, DeepSeek, SQL)
+      const token = await getAccessTokenSilently();
       if (!token) {
         chatStore.addMessage("Er is een probleem met de authenticatie. Probeer het later opnieuw.", "error");
         return;
@@ -158,9 +127,11 @@ const sendMessage = async () => {
       response = await fetchProtectedData(token, userMessage, selectedAgent.value);
 
       if (response && response.answer) {
-        chatStore.addMessage(response.answer, "bot");
+        // OpenAI / DeepSeek antwoord + follow-up vragen
+        chatStore.addMessage(response.answer, "bot", selectedAgent.value, response.followup);
       } else if (response && response.data) {
-        chatStore.addMessage(response.data, "sql");
+        // SQL-response met data-tabel + follow-up
+        chatStore.addMessage("", "sql", selectedAgent.value, response.followup, response.data);
       } else {
         chatStore.addMessage("Ik kan momenteel geen verbinding maken met de service, probeer het later opnieuw.", "error");
       }
@@ -175,90 +146,134 @@ const sendMessage = async () => {
 };
 
 
+const formatMessage = (text, agent) => {
+  // SQL mag NIET geformatteerd worden!
+  if (agent === "sql") return text;
+
+  let formattedText = text;
+
+  // **Bold maken** → **tekst** wordt <strong>tekst</strong>
+  formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+
+  // **Opsommingen**: "1. tekst" → "• tekst"
+  formattedText = formattedText.replace(/\n\d+\.\s/g, "<br><br>• ");
+
+  // **Verwijder dubbele bullets als ze per ongeluk ontstaan**
+  formattedText = formattedText.replace(/•\s•/g, "• ");
+
+  // **DeepSeek: `###` verwijderen en vervangen door een echte newline**
+  if (agent === "deepseek") {
+    formattedText = formattedText.replace(/###/g, "<br><br>");
+  }
+
+  return formattedText;
+};
+
+const sendFollowUp = (question) => {
+  message.value = question;
+  sendMessage();
+};
+
 </script>
+
 
 <template>
   <div class="chat-wrapper">
-    <!-- Clickable chatbot Logo -->
+    <!-- Chatbot-logo -->
     <div v-if="!isOpen" class="chat-logo" @click="toggleChat">
       <img :src="logoIcon" alt="ChatBot Logo" class="chat-logo-icon" />
     </div>
 
     <!-- Chatbox -->
     <div v-if="isOpen" class="chat-container">
+      <!-- Header -->
       <div class="chat-header">
         <img :src="nameIcon" alt="ImmoPilot" class="chat-title" />
         <button class="close-button" @click="toggleChat">✖</button>
       </div>
 
+      <!-- Chatberichten -->
       <div ref="chatContainer" class="chat-messages">
-        <!-- Welcomemessage -->
+        <!-- Welkomstbericht -->
         <div class="message bot-message">
           <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
           <span class="message-text">Hallo! Ik ben ImmoPilot! Selecteer je agent en stel me gerust je vraag.</span>
         </div>
 
-        <!-- Dynamic messages -->
-        <div v-for="msg in chatStore.messages" :key="msg.id" :class="['message', msg.type === 'user' ? 'user-message' : (msg.type === 'error' ? 'error-message' : 'bot-message')]">
-          <template v-if="msg.type === 'bot'">
-            <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
-            <template v-if="isList(msg.text)">
-              <div>
-                <span class="message-text">{{ getFirstLine(msg.text) }}</span>
-                <ul class="styled-list">
-                  <li v-for="(item, index) in parseList(msg.text)" :key="index">
-                    <span class="bullet-point">•</span> <span class="list-text">{{ item }}</span>
-                  </li>
-                </ul>
+        <!-- Dynamische berichten -->
+        <div
+          v-for="msg in chatStore.messages"
+          :key="msg.id"
+          class="message-container"
+        >
+          <div :class="['message', msg.type === 'user' ? 'user-message' : (msg.type === 'error' ? 'error-message' : 'bot-message')]">
+
+            <!-- Bot- en gebruikersberichten -->
+            <template v-if="msg.type === 'bot' || msg.type === 'user'">
+              <img v-if="msg.type === 'bot'" src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+              <span class="message-text" v-html="formatMessage(msg.text, msg.agent)"></span>
+            </template>
+
+            <!-- Errorberichten -->
+            <template v-else-if="msg.type === 'error'">
+              <div class="error-message">
+                <span class="message-text">{{ msg.text }}</span>
               </div>
             </template>
-            <template v-else>
-              <span class="message-text">{{ msg.text }}</span>
+
+            <!-- SQL Response als tabel -->
+            <template v-else-if="msg.type === 'sql'">
+              <div class="sql-response">
+                <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
+                <div v-if="Array.isArray(msg.data) && msg.data.length > 0">
+                  <table class="sql-table">
+                    <thead>
+                      <tr>
+                        <th v-for="key in Object.keys(msg.data[0])" :key="key">{{ key }}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, rowIndex) in msg.data" :key="rowIndex">
+                        <td v-for="(value, key) in row" :key="key">{{ value }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div v-else>
+                  Geen data beschikbaar.
+                </div>
+              </div>
             </template>
-            <button class="copy-button" @click="copyToClipboard(msg.text, msg.id)">
+
+            <!-- Copy-knop (niet voor user messages) -->
+            <button
+              v-if="msg.type === 'bot' || msg.type === 'sql'"
+              class="copy-button"
+              @click="copyToClipboard(msg.type === 'sql' ? JSON.stringify(msg.data, null, 2) : msg.text, msg.id)"
+            >
               <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
               <span v-else class="icon-copy"></span>
             </button>
-          </template>
+          </div>
 
-          <!-- SQL response -->
-          <template v-else-if="msg.type === 'sql'">
-            <div class="bot-message">
-              <img src="/logosoftedge.png" alt="Bot Logo" class="bot-avatar" />
-              <div class="sql-response">
-                <table class="sql-table">
-                  <thead>
-                    <tr>
-                      <th v-for="(value, key) in msg.text[0]" :key="key">{{ key }}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, index) in msg.text" :key="index">
-                      <td v-for="(value, key) in row" :key="key">{{ value }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <button class="copy-button table-copy-button" @click="copyToClipboard(msg.text, msg.id)">
-                  <span v-if="copiedState[msg.id]" class="icon-checkmark"></span>
-                  <span v-else class="icon-copy"></span>
-                </button>
+                    <!-- ✅ Follow-ups komen nu ALTIJD onder de berichten en zijn klikbaar -->
+              <div v-if="msg.suggestions && msg.suggestions.length" class="followup-text">
+                <br>
+                <strong>Wil je meer weten?</strong>
+                <p>
+                  <span
+                    v-for="(q, index) in msg.suggestions"
+                    :key="index"
+                    class="followup-question"
+                    @click="sendFollowUp(q)"
+                  >
+                    <span class="followup-bullet">•</span> {{ q }}
+                  </span>
+                </p>
               </div>
-            </div>
-          </template>
-
-          <!-- Error message -->
-          <template v-else-if="msg.type === 'error'">
-            <div class="error-message">
-              <span class="message-text">{{ msg.text }}</span>
-            </div>
-          </template>
-
-          <!-- General messages -->
-          <template v-else>
-            <span class="message-text">{{ msg.text }}</span>
-          </template>
         </div>
 
+        <!-- Laadindicator -->
         <div v-if="isLoading" class="thinking-animation">
           <div class="thinking-dots">
             <span></span><span></span><span></span>
@@ -266,7 +281,7 @@ const sendMessage = async () => {
         </div>
       </div>
 
-      <!-- Chat Input & Agent selection -->
+      <!-- Chatinvoer & agentselectie -->
       <div class="chat-input">
         <input v-model="message" placeholder="Typ hier je bericht..." class="input-text" />
         <button class="agent-selector" @click="toggleAgentSelection">
@@ -277,7 +292,7 @@ const sendMessage = async () => {
         </button>
       </div>
 
-      <!-- AI Agent selection -->
+      <!-- AI Agent selectie -->
       <div v-if="showAgentSelection" class="agent-dropdown">
         <h3 class="agent-header">Kies je AI-assistent:</h3>
         <ul>
@@ -294,6 +309,8 @@ const sendMessage = async () => {
   </div>
 </template>
 
+
+
 <style scoped>
 .chat-wrapper {
   position: fixed;
@@ -301,19 +318,23 @@ const sendMessage = async () => {
   right: 20px;
   z-index: 1000;
 }
+
 .chat-logo {
   background-color: transparent;
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.3s ease-in-out;
 }
+
 .chat-logo:hover {
   transform: scale(1.1);
 }
+
 .chat-logo-icon {
   width: 80px;
   height: 80px;
 }
+
 .chat-container {
   position: fixed;
   bottom: 10px;
@@ -329,6 +350,7 @@ const sendMessage = async () => {
   border: 2px solid #5ff38e;
   overflow: hidden;
 }
+
 .chat-header {
   color: white;
   padding: 12px;
@@ -337,9 +359,11 @@ const sendMessage = async () => {
   justify-content: center;
   position: relative;
 }
+
 .chat-title {
   height: 35px;
 }
+
 .close-button {
   background: none;
   border: none;
@@ -349,6 +373,7 @@ const sendMessage = async () => {
   position: absolute;
   right: 10px;
 }
+
 .chat-messages {
   padding: 12px;
   flex: 1;
@@ -357,16 +382,19 @@ const sendMessage = async () => {
   flex-direction: column;
   gap: 10px;
 }
+
 .message {
   max-width: 100%;
   padding: 8px;
   font-size: 14px;
   word-break: break-word;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   color: rgb(100, 100, 100);
+  gap: 10px;
 }
-/* Bot- and user messages */
+
 .bot-message {
   display: flex;
   align-items: center;
@@ -377,12 +405,17 @@ const sendMessage = async () => {
   padding: 8px;
   background: white;
 }
+
 .user-message {
-  align-self: flex-end;
+  align-self: flex-end !important; /* ✅ Zet de gehele message naar rechts */
+  display: flex;
+  align-items: center; /* ✅ Zorgt ervoor dat de tekst en eventuele icoontjes netjes uitgelijnd blijven */
+  justify-content: flex-end; /* ✅ Zorgt ervoor dat de inhoud van de message aan de rechterkant blijft */
   text-align: right;
   padding: 8px;
+  word-break: break-word;
 }
-/* Error messages */
+
 .error-message {
   background-color: #5ff38e;
   border: 1px solid #5ff38e;
@@ -394,18 +427,23 @@ const sendMessage = async () => {
   display: flex;
   align-items: center;
 }
+
 .bot-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
   flex-shrink: 0;
+  display: block;
+  margin: 0 auto 5px auto;
 }
+
 .chat-input {
   display: flex;
   padding: 10px;
   border-top: 1px solid #ddd;
   align-items: center;
 }
+
 .input-text {
   flex: 1;
   padding: 8px;
@@ -416,16 +454,19 @@ const sendMessage = async () => {
   font-size: 14px;
   transition: border-color 0.3s ease-in-out;
 }
+
 .agent-selector {
   background: none;
   border: none;
   cursor: pointer;
   margin: 0 10px;
 }
+
 .agent-icon {
   width: 30px;
   height: 30px;
 }
+
 .send-button {
   background-color: #5ff38e;
   border: none;
@@ -435,10 +476,12 @@ const sendMessage = async () => {
   cursor: pointer;
   font-size: 14px;
 }
+
 .send-button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
 }
+
 .agent-dropdown {
   position: absolute;
   bottom: 70px;
@@ -450,39 +493,47 @@ const sendMessage = async () => {
   width: 95%;
   padding: 10px;
 }
+
 .agent-header {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
   color: #5ff38e;
 }
+
 .agent-dropdown ul {
   list-style: none;
   padding: 0;
   margin: 0;
 }
+
 .agent-dropdown li {
   display: flex;
   align-items: center;
   padding: 10px;
   cursor: pointer;
 }
+
 .agent-dropdown li:hover {
   background: #f0f0f0;
 }
+
 .agent-info {
   margin-left: 10px;
   font-size: 14px;
 }
+
 .agent-info p {
   margin: 0;
   color: #555;
   font-size: 12px;
 }
+
 .agent-name {
   color: #5ff38e;
   font-weight: bold;
 }
+
 .sql-response {
   background: white;
   padding: 10px;
@@ -493,12 +544,13 @@ const sendMessage = async () => {
   overflow-x: auto;
   max-height: 350px;
 }
+
 .sql-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: auto;
   font-size: 12px;
 }
+
 .sql-table th, .sql-table td {
   border: 1px solid #ddd;
   padding: 6px;
@@ -507,6 +559,7 @@ const sendMessage = async () => {
   overflow: hidden;
   word-break: break-word;
 }
+
 .copy-button {
   background: none;
   border: none;
@@ -522,67 +575,56 @@ const sendMessage = async () => {
   padding: 3px 6px;
   margin-top: 3px;
 }
+
 .copy-button:hover {
   transform: scale(1.1);
   background: #f5f5f5;
   border-color: #bcbcbc;
 }
+
 .icon-copy::before {
   content: "📄";
   font-size: 14px;
 }
+
 .icon-checkmark::before {
   content: "✔";
   font-size: 14px;
   border-color: #5ff38e;
   color: #4dd678;
 }
-.thinking-animation {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 10px;
-}
-.thinking-dots span {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin: 0 3px;
-  background-color: #5ff38e;
-  border-radius: 50%;
-  animation: blink 1.5s infinite;
-}
-.thinking-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
-.thinking-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
-.styled-list {
-  list-style: none;
-  padding: 10px;
-  margin-top: 5px;
-  background: #ffffff;
-}
-.styled-list li {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px;
+
+.followup-text {
+  display: block;
+  margin-top: 12px;
+  padding: 2px 8px 14px 6px;
+  border: 1px solid #5ff38e;
+  border-radius: 8px;
   font-size: 14px;
   color: #555;
-  border-bottom: 1px solid #e1e1e1;
+  font-style: italic;
+  background: #f9f9f9;
+  text-align: left;
+  width: 100%;
 }
-.styled-list li:last-child {
-  border-bottom: none;
+
+.followup-question {
+  cursor: pointer;
+  color: #555;
+  transition: color 0.2s;
+  display:block;
 }
-.bullet-point {
-  font-weight: bold;
+
+.followup-question:hover {
   color: #5ff38e;
-  margin-right: 8px;
 }
-.list-text {
-  flex: 1;
+
+.followup-bullet {
+  color: #5ff38e;
+  font-weight: bold;
+  margin-right: 5px;
 }
+
 @keyframes blink {
   0% { opacity: 0.2; }
   50% { opacity: 1; }
@@ -595,4 +637,5 @@ const sendMessage = async () => {
     height: 85vh;
   }
 }
+
 </style>
