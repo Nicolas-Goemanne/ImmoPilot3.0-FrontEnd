@@ -9,7 +9,7 @@ const handleLogout = () => {
 </script>
 
 <template>
-  <button @click="logout" class="auth-btn logout-btn">Logout</button>
+  <button @click="handleLogout" class="auth-btn logout-btn">Logout</button>
 </template>
 
 <style scoped>

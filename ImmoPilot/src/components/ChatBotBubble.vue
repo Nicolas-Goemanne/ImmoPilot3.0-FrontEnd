@@ -30,8 +30,8 @@ const copiedState = ref({});
 const agents = {
   openai: { icon: openaiIcon, name: "OpenAI", description: "Een krachtige AI voor algemene vragen." },
   deepseek: { icon: deepseekIcon, name: "DeepSeek", description: "AI-model gespecialiseerd in logische analyses." },
-  sql: { icon: sqlIcon, name: "SQL", description: "Haal nauwkeurige data uit onze SQL-database met AI." },
-  claire: { icon: claireIcon, name: "Claire", description: "Onze eigen chatbot met vastgoedkennis." }
+  sql: { icon: sqlIcon, name: "SQL", description: "Haal nauwkeurige data uit onze SQL-database." },
+  claire: { icon: claireIcon, name: "Claire", description: "Chatbot met een uitgebreide vastgoedkennis." }
 };
 
 // Scrollfunctie
@@ -402,11 +402,11 @@ const sendFollowUp = (question) => {
   border-radius: 8px;
   border: 1px solid #5ff38e;
   width: 100%;
-  padding: 8px;
+  padding: 8px 8px 8px 8px;
   background: white;
 }
 .welcome-message {
-  padding-bottom: 30px;
+  padding-bottom: 15px;
 }
 .user-message {
   align-self: flex-end !important;
