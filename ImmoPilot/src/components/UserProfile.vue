@@ -27,7 +27,7 @@ const { user, isAuthenticated } = useAuth0();
 .user-email {
   font-size: 14px;
   font-weight: bold;
-  color: #5ff38e;
+  color: #124522;
 }
 </style>
 

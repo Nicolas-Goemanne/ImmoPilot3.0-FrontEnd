@@ -59,7 +59,7 @@ const copyToClipboard = (data, messageId) => {
       copiedState.value[messageId] = true;
       setTimeout(() => {
         copiedState.value[messageId] = false;
-      }, 2000);
+      }, 120000);
     })
     .catch(err => console.error("❌ Fout bij kopiëren:", err));
 };
@@ -110,7 +110,7 @@ const sendMessage = async () => {
         return;
       }
 
-      response = await fetchClaireResponse(userMessage, tokenStore.claireToken);
+      response = await fetchClaireResponse(userMessage);
       if (response && response.response) {
         chatStore.addMessage(response.response, "bot", selectedAgent.value, response.followup);
       } else {
@@ -347,7 +347,7 @@ const sendFollowUp = (question) => {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
-  border: 2px solid #5ff38e;
+  border: 2px solid #124522;
   overflow: hidden;
 }
 
@@ -369,7 +369,7 @@ const sendFollowUp = (question) => {
   border: none;
   font-size: 20px;
   cursor: pointer;
-  color: #5ff38e;
+  color: #3fbc68;
   position: absolute;
   right: 10px;
 }
@@ -400,7 +400,7 @@ const sendFollowUp = (question) => {
   align-items: center;
   gap: 10px;
   border-radius: 8px;
-  border: 1px solid #5ff38e;
+  border: 1px solid #124522;
   width: 100%;
   padding: 8px 8px 8px 8px;
   background: white;
@@ -419,8 +419,8 @@ const sendFollowUp = (question) => {
 }
 
 .error-message {
-  background-color: #5ff38e;
-  border: 1px solid #5ff38e;
+  background-color: #3fbc68;
+  border: 1px solid white;
   color: white;
   font-weight: bold;
   border-radius: 8px;
@@ -450,7 +450,7 @@ const sendFollowUp = (question) => {
   flex: 1;
   padding: 8px;
   border-radius: 8px;
-  border: 1px solid #5ff38e;
+  border: 1px solid #124522;
   color: rgb(100, 100, 100);
   outline: none;
   font-size: 14px;
@@ -470,7 +470,7 @@ const sendFollowUp = (question) => {
 }
 
 .send-button {
-  background-color: #5ff38e;
+  background-color: #3fbc68;
   border: none;
   color: white;
   padding: 10px;
@@ -489,7 +489,7 @@ const sendFollowUp = (question) => {
   bottom: 70px;
   left: 10px;
   background: white;
-  border: 1px solid #ddd;
+  border: 1px solid #124522;
   border-radius: 5px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   width: 95%;
@@ -500,7 +500,7 @@ const sendFollowUp = (question) => {
   font-size: 16px;
   font-weight: bold;
   margin-bottom: 10px;
-  color: #5ff38e;
+  color: #3fbc68;
 }
 
 .agent-dropdown ul {
@@ -532,7 +532,7 @@ const sendFollowUp = (question) => {
 }
 
 .agent-name {
-  color: #5ff38e;
+  color: #3fbc68;
   font-weight: bold;
 }
 
@@ -625,6 +625,35 @@ const sendFollowUp = (question) => {
   color: #5ff38e;
   font-weight: bold;
   margin-right: 5px;
+}
+
+.thinking-animation {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px;
+}
+
+.thinking-dots {
+  display: flex;
+  gap: 5px;
+}
+
+.thinking-dots span {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #5ff38e;
+  border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
 }
 
 @keyframes blink {

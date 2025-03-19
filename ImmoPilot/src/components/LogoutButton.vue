@@ -25,7 +25,7 @@ const handleLogout = () => {
 
 /* 🔹 Login Knop */
 .logout-btn {
-  background-color: #5ff38e;
+  background-color: #124522;
   color: white;
   position: absolute;
   top: 20px;

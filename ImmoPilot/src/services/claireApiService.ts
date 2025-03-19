@@ -19,7 +19,6 @@ function decodeJwt(token: string): any {
   }
 }
 
-
 export async function fetchClaireResponse(userMessage: string) {
   const tokenStore = useTokenStore();
 
@@ -47,8 +46,8 @@ export async function fetchClaireResponse(userMessage: string) {
 
     // ✅ Correcte payload voor de Claire API
     const requestBody = {
-      userId: userId, // ✅ Gebruik de `sub` uit het JWT-token
-      sessionId: 144, // ⚠️ Moet mogelijk dynamisch worden bepaald (voor nu hardcoded)
+      userId: userId,
+      sessionId: 144,
       message: {
         parentId: null, // Optioneel, mag null zijn
         userMessage: userMessage // Het bericht van de gebruiker
@@ -75,9 +74,67 @@ export async function fetchClaireResponse(userMessage: string) {
       throw new Error(`Fout bij Claire API: ${response.status}`);
     }
 
-    return await response.json();
+    const responseData = await response.json();
+    const answer = responseData.response || "Geen antwoord ontvangen.";
+
+    // ✅ Vraag Claire voor follow-up vragen
+    const followups = await fetchClaireFollowups(userId, answer);
+
+    return { response: answer, followup: followups };
   } catch (error) {
     console.error("⚠️ Fout bij Claire API-aanroep:", error);
     return null;
   }
 }
+
+async function fetchClaireFollowups(userId: string, lastAnswer: string) {
+  const tokenStore = useTokenStore();
+  if (!tokenStore.claireToken) {
+    console.error("❌ Claire API-token niet beschikbaar voor follow-ups.");
+    return [];
+  }
+
+  try {
+    const followupRequestBody = {
+      userId: userId,
+      sessionId: 144,
+      message: {
+        parentId: null,
+        userMessage: `Op basis van dit antwoord: "${lastAnswer}" genereer drie relevante vervolgvragen zonder uitleg.`
+      },
+      productNames: [],
+      documentTypes: []
+    };
+
+    console.log("📡 Vervolgvragen ophalen van Claire:", followupRequestBody);
+
+    const followupResponse = await fetch(`${CLAIRE_BASE_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${tokenStore.claireToken}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(followupRequestBody)
+    });
+
+    if (!followupResponse.ok) {
+      console.warn("⚠️ Claire API gaf geen correcte vervolgvragen terug.");
+      return [];
+    }
+
+    const followupData = await followupResponse.json();
+    return parseFollowupQuestions(followupData.response || "");
+  } catch (error) {
+    console.error("❌ Fout bij ophalen van Claire follow-ups:", error);
+    return [];
+  }
+}
+
+function parseFollowupQuestions(text: string): string[] {
+  return text
+    .split("\n")
+    .map(q => q.replace(/^\d+[\.\)]?\s*/, "").trim())
+    .map(q => q.split(" ").slice(0, 10).join(" "))
+    .slice(0, 3);
+}
+
